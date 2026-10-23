@@ -19,6 +19,42 @@
 char debout[4096];
 
 #include <string.h>
+#include <stddef.h>
+
+char *wrap_text(const char *src)
+{
+    static char output[4096];
+    size_t i = 0, j = 0;
+    int column = 0;
+
+    if (src == NULL) {
+        output[0] = '\0';
+        return output;
+    }
+
+    while (src[i] != '\0' && j < sizeof(output) - 1) {
+        if (src[i] == '\n') {
+            if (j + 2 >= sizeof(output))
+                break;
+
+            output[j++] = '\n';
+            output[j++] = '\n';
+            column = 0;
+            i++;
+        } else {
+            if (column == 21) {
+                output[j++] = '\n';
+                column = 0;
+            }
+
+            output[j++] = src[i++];
+            column++;
+        }
+    }
+
+    output[j] = '\0';
+    return output;
+}
 
 const char *last_20_lines(const char *text)
 {
@@ -110,8 +146,18 @@ void ui_ftr(char* opt1, char* opt2){
     gfx_text(gfx_width()-sizt, gfx_height()-12, opt2, GFX_WHITE);
 }
 
+void ui_lsoft_menu(char* help_text){
+    int start = gfx_height()-100;
+    int end = gfx_height()-16;
+    gfx_line(0, start, gfx_width(), start, GFX_WHITE);
+    gfx_fill_rect(0, start, gfx_width(), end,
+                  GFX_RGB(140, 140, 140));
+    char *txt = wrap_text(help_text);
+    gfx_text(0, start+5, txt, GFX_WHITE);
+}
 
-void test_gfx(int sel)
+
+void test_gfx(int sel, int lsoft)
 {
     if (gfx_init() != 0)
         return;
@@ -119,44 +165,25 @@ void test_gfx(int sel)
     // gfx_clear(GFX_BLUE);
     // gfx_clear(GFX_BLACK);
     
-    if(sel==1){ui_section("Male", 1, 1);}
-    else{ui_section("Male", 1, 0);}
+    if(sel==1){ui_section("Selection 1", 1, 1);}
+    else{ui_section("Selection 1", 1, 0);}
 
-    if(sel==2){ui_section("Female", 2, 1);}
-    else{ui_section("Female", 2, 0);}
+    if(sel==2){ui_section("Selection 2", 2, 1);}
+    else{ui_section("Selection 2", 2, 0);}
 
-    if(sel==3){ui_section(">:3c", 3, 1);}
-    else{ui_section(">:3c", 3, 0);}
+    if(sel==3){ui_section("Selection 3", 3, 1);}
+    else{ui_section("Selection 3", 3, 0);}
 
-    if(sel==4){ui_section("Prefer not to exist", 4, 1);}
-    else{ui_section("Prefer not to exist", 4, 0);}
+    if(sel==4){ui_section("Selection 4", 4, 1);}
+    else{ui_section("Selection 4", 4, 0);}
 
-    //gfx_fill_rect(0, 131, gfx_width(), gfx_height()-30, GFX_BLACK);
-    ui_hdr("What's your gender?");
-    ui_ftr("Help", "Select");
+    ui_hdr("Menu Test");
+    if(lsoft==0){ui_ftr("Help", "Select");}
+    else{
+        ui_lsoft_menu("This is an example of an option menu.\nIn the future, this will have proper options instead of only text\nbut whatever.");
+        ui_ftr("Exit", "");
+    }
 
-    // gfx_clear(GFX_RGB(18, 22, 35));
-
-    // /* Header */
-    // gfx_fill_rect(0, 0, gfx_width(), 24,
-    //               GFX_RGB(30, 90, 160));
-
-    // gfx_text(8, 8, "FPDOOM GRAPHICS", GFX_WHITE);
-
-    // /* Shapes */
-    // gfx_rect(10, 40, 100, 55, GFX_GREEN);
-    // gfx_fill_rect(120, 40, 80, 55, GFX_BLUE);
-
-    // gfx_circle(60, 135, 25, GFX_YELLOW);
-    // gfx_fill_circle(160, 135, 25, GFX_RED);
-
-    // /* Lines */
-    // gfx_line(10, 180, gfx_width() - 10, 220,
-    //          GFX_CYAN);
-
-    // /* Status text */
-    // gfx_text(10, gfx_height() - 20,
-    //          "FRAMEBUFFER OK", GFX_WHITE);
     gfx_present();
 }
 
@@ -206,24 +233,37 @@ int main(int argc, char **argv) {
     int sel = 1;
     int osel = sel;
     int debug = 0;
-    test_gfx(sel);
+    int lsoft = 0;
+    test_gfx(sel, lsoft);
     while(1){
-        if(!debug){if(osel!=sel){test_gfx(sel);}}
+        if(!debug){if(osel!=sel&&lsoft==0){test_gfx(sel, lsoft);}}
         else{gfx_clear(GFX_RED);
             gfx_text(0, 0, last_20_lines(debout), GFX_WHITE);gfx_present();
             sys_wait_ms(200);}
         osel = sel;
         keypad_wait(&ev);
         int mv = process_keypad(ev, &sel);
+        if(lsoft==0){
         if(mv == -1){
             char select[16];
             snprintf(select, sizeof(select), "%d", sel);
             debug_print(select, 0);debug_print(" selected!", 1);
         }
+        if(mv == -2){
+            lsoft = 1;
+            test_gfx(sel, 1);
+        }}
+        else{
+            if(mv == -2){
+            lsoft = 0;
+            test_gfx(sel, 0);
+            }
+        }
         if(mv == -5){
-            if(debug==1) {test_gfx(sel);debug = 0;}
+            if(debug==1) {test_gfx(sel, lsoft);debug = 0;}
             else {debug = 1;}
             //debug = !debug;
         }
     }
+    gfx_shutdown();
 }
