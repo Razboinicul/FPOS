@@ -3,9 +3,9 @@ TWO_STAGE = 0
 
 SYS_EXTRA = sdio microfat sfc
 
-APP_SRCS = main gfx keypad
+APP_SRCS = main gfx keypad gui
 APP_OBJS1 = $(APP_SRCS:%=$(OBJDIR)/app/%.o)
-APP_OBJS2 =
+APP_OBJS2 = 
 
 include ../buildinc.make
 

@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include "gfx.h"
+#include "keypad.h"
 
 #define GUI_BG       GFX_RGB(18, 22, 32)
 #define GUI_PANEL    GFX_RGB(35, 42, 56)
@@ -14,45 +15,35 @@
 #define GUI_FOCUS    GFX_RGB(255, 190, 65)
 #define GUI_SUCCESS  GFX_RGB(80, 210, 130)
 
-typedef struct {
-    const char *up;
-    const char *down;
-    const char *left;
-    const char *right;
-    const char *confirm;
-    const char *back;
-    const char *soft_right;
-} gui_keys_t;
+extern int sel;
 
 typedef struct {
-    int focused;
-    int widget_count;
+    char *text;
+    uint16_t norm_color;
+    uint16_t sel_color;
+} UISection;
 
-    int activate;
-    int back_pressed;
-    int right_soft_pressed;
-    int left_pressed;
-    int right_pressed;
-    int quit;
+typedef struct {
+    char *text;
+    uint16_t color;
+} HDRSection;
 
-    gui_keys_t keys;
-} gui_context_t;
+typedef struct {
+    char *opt1_text;
+    char *opt2_text;
+    uint16_t color;
+} FTRSection;
 
-void gui_init(gui_context_t *ctx, gui_keys_t keys);
-void gui_begin_frame(gui_context_t *ctx);
-void gui_end_frame(gui_context_t *ctx);
+//int strlength(const char *str);
+char *wrap_text(const char *src);
+int process_keypad(keypad_event_t event, int *sel);
 
-void gui_panel(int x, int y, int w, int h, const char *title);
-void gui_label(int x, int y, const char *text, uint16_t color);
-int gui_button(gui_context_t *ctx, const char *text);
-int gui_checkbox(gui_context_t *ctx, const char *text, int *value);
-int gui_slider(gui_context_t *ctx, const char *text,
-               int *value, int min_value, int max_value);
-void gui_progressbar(int x, int y, int w, int h,
-                     int value, int max_value);
+void ui_hdr(char* txt, uint16_t hdr_color);
+void ui_ftr(char* opt1, char* opt2, uint16_t hdr_color);
 
-int gui_back_requested(const gui_context_t *ctx);
-int gui_right_soft_requested(const gui_context_t *ctx);
-int gui_quit_requested(const gui_context_t *ctx);
+void ui_section(char* txt, int idx, int sel, uint16_t norm_color, uint16_t sel_color);
+
+void ui_lsoft_menu(char* help_text, uint16_t menu_color);
+int ui_update(UISection* sections, HDRSection hdr, FTRSection ftr);
 
 #endif

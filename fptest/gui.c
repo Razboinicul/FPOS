@@ -1,240 +1,166 @@
 
 #include "gui.h"
+#include "gfx.h"
 #include "keypad.h"
 #include "syscode.h"
 
 #include <string.h>
-
-static int key_matches(int key, const char *name)
+int strlength(const char *str)
 {
-    char *actual;
+    int len = 0;
 
-    if (!name)
-        return 0;
+    while (str[len] != '\0')
+        len++;
 
-    actual = keypad_name((uint16_t)key);
-
-    return actual && strcmp(actual, name) == 0;
+    return len;
 }
-
-void gui_init(gui_context_t *ctx, gui_keys_t keys)
+char *wrap_text(const char *src)
 {
-    memset(ctx, 0, sizeof(*ctx));
-    ctx->keys = keys;
-    keypad_init();
-}
+    static char output[4096];
+    size_t i = 0, j = 0;
+    int column = 0;
 
-void gui_begin_frame(gui_context_t *ctx)
-{
-    //struct 
-    keypad_event_t ev;
+    if (src == NULL) {
+        output[0] = '\0';
+        return output;
+    }
 
-    ctx->activate = 0;
-    ctx->back_pressed = 0;
-    ctx->right_soft_pressed = 0;
-    ctx->left_pressed = 0;
-    ctx->right_pressed = 0;
-    ctx->quit = 0;
+    while (src[i] != '\0' && j < sizeof(output) - 1) {
+        if (src[i] == '\n') {
+            if (j + 2 >= sizeof(output))
+                break;
 
-    while (keypad_poll(&ev)) {
-        if (ev.type != KEYPAD_PRESS)
-            continue;
+            output[j++] = '\n';
+            output[j++] = '\n';
+            column = 0;
+            i++;
+        } else {
+            if (column == 21) {
+                output[j++] = '\n';
+                column = 0;
+            }
 
-        if (key_matches(ev.key, ctx->keys.up)) {
-            if (ctx->focused > 0)
-                ctx->focused--;
-        }
-        else if (key_matches(ev.key, ctx->keys.down)) {
-            ctx->focused++;
-        }
-        else if (key_matches(ev.key, ctx->keys.confirm)) {
-            ctx->activate = 1;
-        }
-        else if (key_matches(ev.key, ctx->keys.back)) {
-            ctx->back_pressed = 1;
-        }
-        else if (key_matches(ev.key, ctx->keys.soft_right)) {
-            ctx->right_soft_pressed = 1;
-        }
-        else if (key_matches(ev.key, ctx->keys.left)) {
-            ctx->left_pressed = 1;
-        }
-        else if (key_matches(ev.key, ctx->keys.right)) {
-            ctx->right_pressed = 1;
+            output[j++] = src[i++];
+            column++;
         }
     }
 
-    /*
-     * Widgets register themselves again every frame.
-     * Focus is clamped in gui_end_frame().
-     */
-    ctx->widget_count = 0;
+    output[j] = '\0';
+    return output;
 }
 
-void gui_end_frame(gui_context_t *ctx)
-{
-    if (ctx->widget_count <= 0) {
-        ctx->focused = 0;
-    } else {
-        if (ctx->focused < 0)
-            ctx->focused = 0;
+void ui_hdr(char* txt, uint16_t hdr_color){
+    gfx_fill_rect(0, 0, gfx_width(), 10,
+                  //GFX_RGB(80, 80, 80));
+                  hdr_color);
+    gfx_text(0, 0, txt, GUI_TEXT);
+    gfx_line(0, 10, gfx_width(), 10, GFX_WHITE);
+}
 
-        if (ctx->focused >= ctx->widget_count)
-            ctx->focused = ctx->widget_count - 1;
+void ui_section(char* txt, int idx, int sel, uint16_t norm_color, uint16_t sel_color){
+    int height = 30;
+    int start = height*(idx)-20;
+    gfx_line(0, start, gfx_width(), start, GFX_WHITE);
+    if(sel){gfx_fill_rect(0, start+1, gfx_width(), start+height+1,
+                  //GFX_RGB(30, 90, 160));}
+                  sel_color);}
+    else{gfx_fill_rect(0, start+1, gfx_width(), start+height+1,
+                  //GFX_RGB(70, 150, 180));}
+                  norm_color);}
+    gfx_line(0, start+height, gfx_width(), start+height, GFX_WHITE);
+    gfx_text(0, start+10, txt, GUI_TEXT);
+}
+
+void ui_ftr(char* opt1, char* opt2, uint16_t hdr_color){
+    int wdt = 6;
+    int sizt = strlength(opt2)*wdt;
+    int start = gfx_height()-15;
+    gfx_line(0, start-1, gfx_width(), start-1, GFX_WHITE);
+    gfx_fill_rect(0, start, gfx_width(), gfx_height(),
+                  //GFX_RGB(100, 100, 100));
+                  hdr_color);
+    gfx_text(0, gfx_height()-12, opt1, GUI_TEXT);
+    gfx_text(gfx_width()-sizt, gfx_height()-12, opt2, GUI_TEXT);
+}
+
+void ui_lsoft_menu(char* help_text, uint16_t menu_color){
+    int start = gfx_height()-100;
+    int end = gfx_height()-16;
+    gfx_line(0, start, gfx_width(), start, GFX_WHITE);
+    gfx_fill_rect(0, start, gfx_width(), end,
+                  //GFX_RGB(140, 140, 140));
+                  menu_color);
+    char *txt = wrap_text(help_text);
+    gfx_text(0, start+5, txt, GUI_TEXT);
+}
+
+int process_keypad(keypad_event_t event, int *sel){
+    char* kpn = keypad_name(event.key);
+    // debug_print("ev.name ", 0);debug_print(kpn, 1);
+    if(event.type==KEYPAD_PRESS){
+    if(kpn==(char*)"UP"){
+        *sel -= 1;
+        if(*sel < 1){*sel = 1;}
+        return -100;
     }
-
-    gfx_present();
-}
-
-void gui_panel(int x, int y, int w, int h, const char *title)
-{
-    gfx_fill_rect(x, y, w, h, GUI_PANEL);
-    gfx_rect(x, y, w, h, GUI_BORDER);
-
-    if (title)
-        gfx_text(x + 8, y + 6, title, GUI_ACCENT);
-}
-
-void gui_label(int x, int y, const char *text, uint16_t color)
-{
-    gfx_text(x, y, text, color);
-}
-
-int gui_button(gui_context_t *ctx, const char *text)
-{
-    int index = ctx->widget_count++;
-    int focused = (index == ctx->focused);
-    int x = 24;
-    int y = 48 + index * 28;
-    int w = gfx_width() - 48;
-    int h = 23;
-
-    uint16_t bg = focused ? GUI_ACCENT : GUI_PANEL;
-    uint16_t fg = focused ? GFX_RGB(255, 255, 255) : GUI_TEXT;
-
-    gfx_fill_rect(x, y, w, h, bg);
-    gfx_rect(x, y, w, h, focused ? GUI_FOCUS : GUI_BORDER);
-    gfx_text(x + 8, y + 6, text, fg);
-
-    return focused && ctx->activate;
-}
-
-int gui_checkbox(gui_context_t *ctx, const char *text, int *value)
-{
-    int index = ctx->widget_count++;
-    int focused = (index == ctx->focused);
-    int x = 24;
-    int y = 48 + index * 28;
-    int w = gfx_width() - 48;
-    int h = 23;
-
-    gfx_fill_rect(x, y, w, h, focused ? GUI_ACCENT : GUI_PANEL);
-    gfx_rect(x, y, w, h, focused ? GUI_FOCUS : GUI_BORDER);
-
-    gfx_text(x + 8, y + 6, text,
-             focused ? GFX_RGB(255, 255, 255) : GUI_TEXT);
-
-    gfx_rect(x + w - 24, y + 5, 14, 13, GUI_TEXT);
-
-    if (*value)
-        gfx_fill_rect(x + w - 21, y + 8, 8, 7, GUI_SUCCESS);
-
-    if (focused && ctx->activate) {
-        *value = !*value;
-        return 1;
+    if(kpn==(char*)"DOWN"){
+        *sel += 1;
+        if(*sel > 4){*sel = 4;}
+        return -100;
     }
-
-    return 0;
-}
-
-int gui_slider(gui_context_t *ctx, const char *text,
-               int *value, int min_value, int max_value)
-{
-    int index = ctx->widget_count++;
-    int focused = (index == ctx->focused);
-    int x = 24;
-    int y = 48 + index * 34;
-    int w = gfx_width() - 48;
-    int bar_y = y + 20;
-    int bar_w = w - 16;
-    int changed = 0;
-    int range = max_value - min_value;
-    int fill_w = 0;
-
-    if (range < 0)
-        range = 0;
-
-    if (*value < min_value)
-        *value = min_value;
-    if (*value > max_value)
-        *value = max_value;
-
-    gfx_text(x, y, text, focused ? GUI_FOCUS : GUI_TEXT);
-
-    gfx_fill_rect(x, bar_y, bar_w, 7, GUI_PANEL);
-    gfx_rect(x, bar_y, bar_w, 7, GUI_BORDER);
-
-    if (range > 0)
-        fill_w = (int)(((long)(*value - min_value) * (bar_w - 2))
-                       / range);
-
-    if (fill_w > 0)
-        gfx_fill_rect(x + 1, bar_y + 1, fill_w, 5, GUI_ACCENT);
-
-    if (focused) {
-        if (ctx->left_pressed && *value > min_value) {
-            --*value;
-            changed = 1;
-        }
-
-        if (ctx->right_pressed && *value < max_value) {
-            ++*value;
-            changed = 1;
-        }
-
-        if (ctx->activate) {
-            *value += 5;
-            if (*value > max_value)
-                *value = min_value;
-            changed = 1;
-        }
+    if(kpn==(char*)"RSOFT"){
+        return -1;
     }
-
-    return changed;
+    if(kpn==(char*)"LSOFT"){
+        return -2;
+    }
+    if(kpn==(char*)"STAR"){
+        return -3;
+    }
+    if(kpn==(char*)"HASH"){
+        return -4;
+    }
+    if(kpn==(char*)"DIAL"){
+        return -5;
+    }
+    else if(kpn==(char*)"DIAL" && event.power){
+        return -50;
+    }
+    return (int)kpn;
+    }
+    return -100;
 }
 
-void gui_progressbar(int x, int y, int w, int h,
-                     int value, int max_value)
-{
-    int fill_w = 0;
+keypad_event_t ev;
+int sel = 1;
+int osel = 1;
+int lsoft = 0; // PLACEHOLDER
 
-    if (value < 0)
-        value = 0;
-    if (max_value < 1)
-        max_value = 1;
-    if (value > max_value)
-        value = max_value;
-
-    gfx_fill_rect(x, y, w, h, GUI_PANEL);
-    gfx_rect(x, y, w, h, GUI_BORDER);
-
-    fill_w = (int)(((long)value * (w - 2)) / max_value);
-
-    if (fill_w > 0)
-        gfx_fill_rect(x + 1, y + 1, fill_w, h - 2, GUI_SUCCESS);
+void rndr_sections(UISection* sections, int selected){
+    size_t length = 4;//sizeof(sections) / sizeof(sections[0]);
+    int j=0;
+    for(j=0;j<length;j++){
+        ui_section(sections[j].text, j+1, (j+1==selected), sections[j].norm_color, sections[j].sel_color);
+    }
 }
 
-int gui_back_requested(const gui_context_t *ctx)
-{
-    return ctx->back_pressed;
-}
-
-int gui_right_soft_requested(const gui_context_t *ctx)
-{
-    return ctx->right_soft_pressed;
-}
-
-int gui_quit_requested(const gui_context_t *ctx)
-{
-    return ctx->quit;
+int ui_update(UISection* sections, HDRSection hdr, FTRSection ftr){
+    if (gfx_init() != 0)
+        return;
+    
+    gfx_clear(GUI_BG);
+    if(osel!=sel&&lsoft==0){
+        rndr_sections(sections, sel);
+        gfx_fill_rect(0, 131, gfx_width(), gfx_height(), GUI_BG);
+        ui_hdr(hdr.text, hdr.color);
+        
+        ui_ftr(ftr.opt1_text, ftr.opt2_text, ftr.color);
+        gfx_present();
+    }
+    osel = sel;
+    keypad_wait(&ev);
+    int mv = process_keypad(ev, &sel);
+    if(lsoft==0){
+    }
+    return mv;
 }
